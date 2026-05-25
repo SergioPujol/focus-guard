@@ -76,7 +76,7 @@ final class StatusBarController {
         let minutes = Int(remaining) / 60
         let seconds = Int(remaining) % 60
         let promise = session.promise.count > 16 ? "\(session.promise.prefix(16))..." : session.promise
-        statusItem.button?.title = "\(String(format: "%02d:%02d", minutes, seconds)) · \(promise)"
+        statusItem.button?.title = "  \(String(format: "%02d:%02d", minutes, seconds)) · \(promise)"
     }
 }
 
