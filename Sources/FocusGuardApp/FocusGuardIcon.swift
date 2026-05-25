@@ -6,7 +6,7 @@ enum FocusGuardIcon {
         let image = NSImage(size: NSSize(width: 18, height: 18))
         image.lockFocus()
         if let context = NSGraphicsContext.current?.cgContext {
-            drawTemplateMark(in: context, rect: CGRect(x: 1, y: 1, width: 16, height: 16))
+            drawTemplateMark(in: context, rect: CGRect(x: -1, y: -1, width: 20, height: 20))
         }
         image.unlockFocus()
         image.isTemplate = true
