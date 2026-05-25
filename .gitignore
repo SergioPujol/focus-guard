@@ -1,0 +1,14 @@
+.build/
+.swiftpm/
+DerivedData/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcuserstate
+.gstack/
+docs/design/
+docs/progress/
+docs/spikes/
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
