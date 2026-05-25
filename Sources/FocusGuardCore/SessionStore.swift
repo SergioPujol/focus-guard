@@ -110,8 +110,13 @@ public final class SessionStore: ObservableObject {
         activeRecoveryPlan = nil
     }
 
-    public func allowCurrentContext(scope: RuleScope = .session) {
-        guard let context = currentContext else { return }
+    @discardableResult
+    public func allowCurrentContext(scope: RuleScope = .session) -> Bool {
+        guard let context = currentContext else {
+            activeRecoveryPlan = nil
+            diagnostics.record(.warning, "Could not save allow correction because no current context was available.")
+            return false
+        }
         let target: RuleTarget
         if let domain = context.domain {
             target = .domain(domain)
@@ -131,13 +136,20 @@ public final class SessionStore: ObservableObject {
             correctionNotice = "Allowed \(target.label)."
             activeRecoveryPlan = nil
             diagnostics.record(.info, "Saved allow correction for \(target.label).")
+            return true
         } catch {
             diagnostics.record(.error, "Could not save allow correction: \(error)")
+            return false
         }
     }
 
-    public func blockCurrentContextForSession() {
-        guard let context = currentContext else { return }
+    @discardableResult
+    public func blockCurrentContextForSession() -> Bool {
+        guard let context = currentContext else {
+            activeRecoveryPlan = nil
+            diagnostics.record(.warning, "Could not save block correction because no current context was available.")
+            return false
+        }
         let target: RuleTarget
         if let domain = context.domain {
             target = .domain(domain)
@@ -155,8 +167,10 @@ public final class SessionStore: ObservableObject {
             try ruleStore.save(rule)
             correctionNotice = "Blocked \(target.label) for this session."
             diagnostics.record(.info, "Saved block correction for \(target.label).")
+            return true
         } catch {
             diagnostics.record(.error, "Could not save block correction: \(error)")
+            return false
         }
     }
 

@@ -433,92 +433,185 @@ struct FocusGuardPopoverView: View {
 struct InterruptionView: View {
     @ObservedObject var store: SessionStore
     let plan: RecoveryPlan
+    @State private var isPerformingPrimaryAction = false
+    @State private var actionMessage: String?
+    @State private var actionMessageIsError = false
+    @State private var manualFallbackActive = false
 
     var body: some View {
         ZStack {
             VisualEffectBackground(material: .hudWindow, blendingMode: .behindWindow)
-            Color.black.opacity(0.38)
+            Color.black.opacity(0.46)
 
-            VStack(alignment: .leading, spacing: 20) {
-                HStack(alignment: .top, spacing: 12) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(FGTheme.warning)
-                        .frame(width: 36, height: 36)
-                        .background(FGTheme.warning.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            VStack(spacing: 0) {
+                interruptionTitleBar
 
-                    VStack(alignment: .leading, spacing: 5) {
-                        Text("DRIFT DETECTED")
-                            .font(.system(size: 10, weight: .bold))
-                            .tracking(1.4)
+                VStack(alignment: .leading, spacing: 18) {
+                    HStack(alignment: .top, spacing: 12) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 18, weight: .semibold))
                             .foregroundStyle(FGTheme.warning)
-                        Text("Return to the promise")
-                            .font(.system(size: 24, weight: .semibold))
-                            .foregroundStyle(FGTheme.primary)
+                            .frame(width: 38, height: 38)
+                            .background(FGTheme.warning.opacity(0.13), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+                        VStack(alignment: .leading, spacing: 5) {
+                            Text("DRIFT DETECTED")
+                                .font(.system(size: 10, weight: .bold))
+                                .tracking(1.4)
+                                .foregroundStyle(FGTheme.warning)
+                            Text("Return to the promise")
+                                .font(.system(size: 24, weight: .semibold))
+                                .foregroundStyle(FGTheme.primary)
+                            Text("Handle the distraction, mark it relevant, or end the session.")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(FGTheme.secondary)
+                        }
+
+                        Spacer(minLength: 0)
                     }
 
-                    Spacer()
-                }
+                    promiseCard
 
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("PROMISE")
-                        .font(.system(size: 10, weight: .bold))
-                        .tracking(1.2)
-                        .foregroundStyle(FGTheme.tertiary)
-                    Text(store.session?.promise ?? "Focus session")
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(FGTheme.primary)
-                        .lineLimit(2)
-                }
-                .padding(14)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(FGTheme.elevated, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(FGTheme.stroke)
-                )
+                    VStack(alignment: .leading, spacing: 12) {
+                        SignalRow(systemImage: "scope", label: "Current", value: contextText, tint: FGTheme.warning)
+                        SignalRow(systemImage: "text.badge.checkmark", label: "Reason", value: plan.trigger)
+                        SignalRow(systemImage: "arrow.turn.up.left", label: "Next", value: plan.fallbackInstruction)
+                    }
 
-                VStack(alignment: .leading, spacing: 12) {
-                    SignalRow(systemImage: "scope", label: "Current", value: contextText, tint: FGTheme.warning)
-                    SignalRow(systemImage: "text.badge.checkmark", label: "Reason", value: plan.trigger)
-                    SignalRow(systemImage: "arrow.turn.up.left", label: "Recovery", value: plan.fallbackInstruction)
-                }
+                    if let actionMessage {
+                        HStack(alignment: .top, spacing: 9) {
+                            Image(systemName: actionMessageIsError ? "exclamationmark.circle.fill" : "checkmark.circle.fill")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(actionMessageIsError ? FGTheme.amber : FGTheme.focus)
+                            Text(actionMessage)
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(FGTheme.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .padding(11)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(FGTheme.elevated.opacity(0.7), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .stroke(actionMessageIsError ? FGTheme.amber.opacity(0.22) : FGTheme.stroke)
+                        )
+                    }
 
-                Spacer()
+                    Spacer(minLength: 0)
 
-                HStack(spacing: 10) {
-                    Button {
-                        store.allowCurrentContext()
-                    } label: {
-                        Label(plan.correctionActionTitle, systemImage: "checkmark.circle")
+                    HStack(spacing: 10) {
+                        Button {
+                            let saved = store.allowCurrentContext()
+                            if saved == false {
+                                actionMessage = "No current app or tab was available to save, so this interruption was dismissed."
+                                actionMessageIsError = false
+                            }
+                        } label: {
+                            Label(plan.correctionActionTitle, systemImage: "checkmark.circle")
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.88)
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(InterruptionButtonStyle(kind: .secondary))
+                        .help("Mark this app or domain as relevant for this session")
+
+                        Button {
+                            store.endSession()
+                        } label: {
+                            Label("End Session", systemImage: "stop.fill")
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.88)
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(InterruptionButtonStyle(kind: .destructive))
+                        .help("End the current promise")
+
+                        Button {
+                            performPrimaryAction()
+                        } label: {
+                            HStack(spacing: 7) {
+                                if isPerformingPrimaryAction {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                        .scaleEffect(0.72)
+                                } else {
+                                    Image(systemName: manualFallbackActive ? "checkmark.circle.fill" : "arrow.up.forward.circle.fill")
+                                }
+                                Text(primaryButtonTitle)
+                            }
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.82)
                             .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(InterruptionButtonStyle(kind: .primary))
+                        .keyboardShortcut(.defaultAction)
+                        .disabled(isPerformingPrimaryAction)
+                        .help(primaryButtonHelp)
                     }
-                    .buttonStyle(InterruptionButtonStyle(kind: .secondary))
-
-                    Button {
-                        store.endSession()
-                    } label: {
-                        Label("End", systemImage: "stop.fill")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(InterruptionButtonStyle(kind: .secondary))
-
-                    Button {
-                        performPrimaryAction()
-                    } label: {
-                        Label(plan.primaryActionTitle, systemImage: "arrow.up.forward.circle.fill")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(InterruptionButtonStyle(kind: .primary))
-                    .keyboardShortcut(.defaultAction)
                 }
+                .padding(.horizontal, 24)
+                .padding(.top, 20)
+                .padding(.bottom, 22)
             }
-            .padding(24)
         }
-        .frame(width: 500, height: 420)
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .frame(width: 520, height: 460)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(FGTheme.stroke)
+        )
+    }
+
+    private var interruptionTitleBar: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "shield.lefthalf.filled")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(FGTheme.secondary)
+            Text("FocusGuard")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(FGTheme.secondary)
+            Spacer()
+            Button {
+                store.dismissInterruption()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 11, weight: .bold))
+                    .frame(width: 28, height: 28)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(FGTheme.secondary)
+            .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .stroke(FGTheme.stroke)
+            )
+            .keyboardShortcut(.cancelAction)
+            .help("Dismiss")
+        }
+        .padding(.leading, 18)
+        .padding(.trailing, 12)
+        .padding(.vertical, 10)
+        .background(Color.black.opacity(0.18))
+    }
+
+    private var promiseCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("PROMISE")
+                .font(.system(size: 10, weight: .bold))
+                .tracking(1.2)
+                .foregroundStyle(FGTheme.tertiary)
+            Text(store.session?.promise ?? "Focus session")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(FGTheme.primary)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(FGTheme.elevated, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(FGTheme.stroke)
         )
     }
@@ -534,16 +627,158 @@ struct InterruptionView: View {
         return context.foregroundApp
     }
 
-    private func performPrimaryAction() {
+    private var primaryButtonTitle: String {
+        if manualFallbackActive {
+            return "Done"
+        }
         switch plan.template {
+        case .closeTab:
+            return "Close Tab"
+        case .quitApp:
+            return "Quit App"
+        default:
+            return plan.primaryActionTitle
+        }
+    }
+
+    private var primaryButtonHelp: String {
+        switch plan.template {
+        case .closeTab:
+            return "Close the active browser tab"
+        case .quitApp:
+            return "Quit the distracted app"
+        default:
+            return plan.fallbackInstruction
+        }
+    }
+
+    private func performPrimaryAction() {
+        guard isPerformingPrimaryAction == false else { return }
+        if manualFallbackActive {
+            store.dismissInterruption()
+            return
+        }
+
+        switch plan.template {
+        case .closeTab:
+            let context = store.currentContext
+            runAutomatedRecovery(
+                failureMessage: "FocusGuard could not close the active browser tab automatically. Close it manually, then press Done."
+            ) {
+                await RecoveryActionExecutor.closeActiveBrowserTab(context: context)
+            }
+        case .quitApp:
+            let context = store.currentContext
+            runAutomatedRecovery(
+                failureMessage: "FocusGuard could not quit the distracted app automatically. Quit it manually, then press Done."
+            ) {
+                await RecoveryActionExecutor.quitForegroundApplication(context: context)
+            }
         case .restartTimer:
             store.restart(minutes: 10)
         case .blockDomain:
-            store.blockCurrentContextForSession()
+            let saved = store.blockCurrentContextForSession()
+            if saved == false {
+                actionMessage = "No current domain was available to block, so this interruption was dismissed."
+                actionMessageIsError = false
+            }
             store.dismissInterruption()
         default:
             store.dismissInterruption()
         }
+    }
+
+    private func runAutomatedRecovery(
+        failureMessage: String,
+        action: @escaping () async -> Bool
+    ) {
+        isPerformingPrimaryAction = true
+        actionMessage = nil
+        Task {
+            let succeeded = await action()
+            await MainActor.run {
+                isPerformingPrimaryAction = false
+                if succeeded {
+                    store.dismissInterruption()
+                } else {
+                    manualFallbackActive = true
+                    actionMessage = failureMessage
+                    actionMessageIsError = true
+                }
+            }
+        }
+    }
+}
+
+private enum RecoveryActionExecutor {
+    static func closeActiveBrowserTab(context: ContextSnapshot?) async -> Bool {
+        guard let appName = browserApplicationName(from: context) else { return false }
+        let script: String
+        if appName == "Safari" {
+            script = """
+            tell application "Safari"
+              if (count of windows) is 0 then return
+              close current tab of front window
+            end tell
+            """
+        } else {
+            script = """
+            tell application "\(appName)"
+              if (count of windows) is 0 then return
+              close active tab of front window
+            end tell
+            """
+        }
+        return await runAppleScript(script)
+    }
+
+    static func quitForegroundApplication(context: ContextSnapshot?) async -> Bool {
+        guard let appName = context?.foregroundApp,
+              appName.localizedCaseInsensitiveCompare("FocusGuard") != .orderedSame else {
+            return false
+        }
+        return await runAppleScript("""
+        tell application "\(escapedAppleScriptString(appName))" to quit
+        """)
+    }
+
+    private static func browserApplicationName(from context: ContextSnapshot?) -> String? {
+        guard let app = context?.foregroundApp.lowercased() else { return nil }
+        if app.contains("safari") { return "Safari" }
+        if app.contains("arc") { return "Arc" }
+        if app.contains("brave") { return "Brave Browser" }
+        if app.contains("chrome") { return "Google Chrome" }
+        return nil
+    }
+
+    private static func runAppleScript(_ script: String) async -> Bool {
+        await Task.detached(priority: .userInitiated) {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+            process.arguments = ["-e", script]
+            process.standardOutput = Pipe()
+            process.standardError = Pipe()
+
+            do {
+                try process.run()
+                let deadline = Date().addingTimeInterval(4)
+                while process.isRunning && Date() < deadline {
+                    try? await Task.sleep(nanoseconds: 50_000_000)
+                }
+                if process.isRunning {
+                    process.terminate()
+                    return false
+                }
+                return process.terminationStatus == 0
+            } catch {
+                return false
+            }
+        }.value
+    }
+
+    private static func escapedAppleScriptString(_ value: String) -> String {
+        value.replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
     }
 }
 
@@ -771,6 +1006,7 @@ private struct InterruptionButtonStyle: ButtonStyle {
     enum Kind {
         case primary
         case secondary
+        case destructive
     }
 
     let kind: Kind
@@ -779,16 +1015,48 @@ private struct InterruptionButtonStyle: ButtonStyle {
         configuration.label
             .font(.system(size: 12, weight: .semibold))
             .padding(.vertical, 10)
-            .foregroundStyle(kind == .primary ? Color.black.opacity(0.88) : FGTheme.primary)
+            .foregroundStyle(foregroundColor)
             .background(
-                kind == .primary
-                    ? FGTheme.primary.opacity(configuration.isPressed ? 0.78 : 0.94)
-                    : FGTheme.elevatedStrong.opacity(configuration.isPressed ? 0.72 : 1),
+                backgroundColor(isPressed: configuration.isPressed),
                 in: RoundedRectangle(cornerRadius: 8, style: .continuous)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(kind == .primary ? Color.clear : FGTheme.stroke)
+                    .stroke(strokeColor)
             )
+            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private var foregroundColor: Color {
+        switch kind {
+        case .primary:
+            Color.black.opacity(0.88)
+        case .secondary:
+            FGTheme.primary
+        case .destructive:
+            FGTheme.warning
+        }
+    }
+
+    private func backgroundColor(isPressed: Bool) -> Color {
+        switch kind {
+        case .primary:
+            FGTheme.primary.opacity(isPressed ? 0.78 : 0.94)
+        case .secondary:
+            FGTheme.elevatedStrong.opacity(isPressed ? 0.72 : 1)
+        case .destructive:
+            FGTheme.warning.opacity(isPressed ? 0.18 : 0.11)
+        }
+    }
+
+    private var strokeColor: Color {
+        switch kind {
+        case .primary:
+            Color.clear
+        case .secondary:
+            FGTheme.stroke
+        case .destructive:
+            FGTheme.warning.opacity(0.2)
+        }
     }
 }

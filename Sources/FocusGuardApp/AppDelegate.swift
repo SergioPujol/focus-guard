@@ -70,12 +70,12 @@ final class StatusBarController {
             statusItem.button?.title = ""
             return
         }
-        statusItem.length = 184
+        statusItem.length = 190
         statusItem.button?.imagePosition = .imageLeading
         let minutes = Int(remaining) / 60
         let seconds = Int(remaining) % 60
-        let promise = session.promise.count > 18 ? "\(session.promise.prefix(18))..." : session.promise
-        statusItem.button?.title = "\(promise) · \(String(format: "%02d:%02d", minutes, seconds))"
+        let promise = session.promise.count > 16 ? "\(session.promise.prefix(16))..." : session.promise
+        statusItem.button?.title = "\(String(format: "%02d:%02d", minutes, seconds)) · \(promise)"
     }
 }
 
@@ -102,7 +102,7 @@ final class InterruptionPresenter {
             return
         }
 
-        let controller = NSHostingController(rootView: InterruptionView(store: store, plan: plan))
+        let controller = FirstMouseHostingController(rootView: InterruptionView(store: store, plan: plan))
         if let window {
             window.contentViewController = controller
             NSApp.activate(ignoringOtherApps: true)
@@ -110,17 +110,40 @@ final class InterruptionPresenter {
             return
         }
 
-        let newWindow = NSWindow(contentViewController: controller)
-        newWindow.title = "FocusGuard"
-        newWindow.styleMask = [.titled, .closable]
+        let newWindow = FocusInterruptionPanel(
+            contentRect: NSRect(x: 0, y: 0, width: 520, height: 460),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        newWindow.contentViewController = controller
         newWindow.level = .floating
         newWindow.isReleasedWhenClosed = false
-        newWindow.titlebarAppearsTransparent = true
+        newWindow.isMovableByWindowBackground = true
+        newWindow.hasShadow = true
+        newWindow.isOpaque = false
         newWindow.backgroundColor = .clear
-        newWindow.setContentSize(NSSize(width: 500, height: 420))
+        newWindow.setContentSize(NSSize(width: 520, height: 460))
         newWindow.center()
         window = newWindow
         NSApp.activate(ignoringOtherApps: true)
         newWindow.makeKeyAndOrderFront(nil)
+    }
+}
+
+private final class FocusInterruptionPanel: NSPanel {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { true }
+}
+
+private final class FirstMouseHostingController<Content: View>: NSHostingController<Content> {
+    override func loadView() {
+        view = FirstMouseHostingView(rootView: rootView)
+    }
+}
+
+private final class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        true
     }
 }
