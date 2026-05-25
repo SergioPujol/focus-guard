@@ -1,4 +1,6 @@
 import AppKit
+import ApplicationServices
+import CoreGraphics
 import FocusGuardCore
 import SwiftUI
 
@@ -29,6 +31,12 @@ private enum PopoverPage: String, CaseIterable, Identifiable {
         case .log: "terminal"
         }
     }
+}
+
+enum InterruptionPanelMetrics {
+    static let width: CGFloat = 560
+    static let height: CGFloat = 540
+    static let size = NSSize(width: width, height: height)
 }
 
 struct FocusGuardPopoverView: View {
@@ -545,7 +553,7 @@ struct InterruptionView: View {
             VStack(spacing: 0) {
                 interruptionTitleBar
 
-                VStack(alignment: .leading, spacing: 18) {
+                VStack(alignment: .leading, spacing: 16) {
                     HStack(alignment: .top, spacing: 12) {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .font(.system(size: 18, weight: .semibold))
@@ -558,12 +566,13 @@ struct InterruptionView: View {
                                 .font(.system(size: 10, weight: .bold))
                                 .tracking(1.4)
                                 .foregroundStyle(FGTheme.warning)
-                            Text("Return to the promise")
+                            Text("Paused for a reset")
                                 .font(.system(size: 24, weight: .semibold))
                                 .foregroundStyle(FGTheme.primary)
-                            Text("Handle the distraction, mark it relevant, or end the session.")
+                            Text("Your timer is paused. Choose what happened before FocusGuard continues.")
                                 .font(.system(size: 12, weight: .medium))
                                 .foregroundStyle(FGTheme.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
 
                         Spacer(minLength: 0)
@@ -574,6 +583,7 @@ struct InterruptionView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         SignalRow(systemImage: "scope", label: "Current", value: contextText, tint: FGTheme.warning)
                         SignalRow(systemImage: "text.badge.checkmark", label: "Reason", value: plan.trigger)
+                        SignalRow(systemImage: "pause.circle.fill", label: "Timer", value: "Paused until you choose an action.", tint: FGTheme.focus)
                         SignalRow(systemImage: "arrow.turn.up.left", label: "Next", value: plan.fallbackInstruction)
                     }
 
@@ -587,8 +597,9 @@ struct InterruptionView: View {
                                 .foregroundStyle(FGTheme.secondary)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
-                        .padding(11)
+                        .padding(12)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(FGTheme.amber.opacity(actionMessageIsError ? 0.08 : 0), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                         .background(FGTheme.elevated.opacity(0.7), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                         .overlay(
                             RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -602,8 +613,8 @@ struct InterruptionView: View {
                         Button {
                             let saved = store.allowCurrentContext()
                             if saved == false {
-                                actionMessage = "No current app or tab was available to save, so this interruption was dismissed."
-                                actionMessageIsError = false
+                                actionMessage = "No current app or tab was available to save. Choose another action to continue."
+                                actionMessageIsError = true
                             }
                         } label: {
                             Label(plan.correctionActionTitle, systemImage: "checkmark.circle")
@@ -653,7 +664,7 @@ struct InterruptionView: View {
                 .padding(.bottom, 22)
             }
         }
-        .frame(width: 520, height: 460)
+        .frame(width: InterruptionPanelMetrics.width, height: InterruptionPanelMetrics.height)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -688,7 +699,7 @@ struct InterruptionView: View {
             )
             .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
             .keyboardShortcut(.cancelAction)
-            .help("Dismiss")
+            .help("Resume timer without changing rules")
         }
         .padding(.leading, 18)
         .padding(.trailing, 12)
@@ -737,6 +748,8 @@ struct InterruptionView: View {
             return "Close Tab"
         case .quitApp:
             return "Quit App"
+        case .returnToApp, .none:
+            return "I'm Back"
         default:
             return plan.primaryActionTitle
         }
@@ -764,7 +777,7 @@ struct InterruptionView: View {
         case .closeTab:
             let context = store.currentContext
             runAutomatedRecovery(
-                failureMessage: "FocusGuard could not close the active browser tab automatically. Close it manually, then press Done."
+                failureMessage: "FocusGuard could not close the active browser tab automatically. Check Accessibility or Automation permissions, or close it manually, then press Done."
             ) {
                 await RecoveryActionExecutor.closeActiveBrowserTab(context: context)
             }
@@ -780,8 +793,10 @@ struct InterruptionView: View {
         case .blockDomain:
             let saved = store.blockCurrentContextForSession()
             if saved == false {
-                actionMessage = "No current domain was available to block, so this interruption was dismissed."
-                actionMessageIsError = false
+                manualFallbackActive = true
+                actionMessage = "No current domain was available to block. Handle it manually, then press Done."
+                actionMessageIsError = true
+                return
             }
             store.dismissInterruption()
         default:
@@ -830,7 +845,10 @@ private enum RecoveryActionExecutor {
             end tell
             """
         }
-        return await runAppleScript(script)
+        if await runAppleScript(script) {
+            return true
+        }
+        return await closeFrontmostBrowserTabWithKeyboardShortcut(context: context, appName: appName)
     }
 
     static func quitForegroundApplication(context: ContextSnapshot?) async -> Bool {
@@ -841,6 +859,37 @@ private enum RecoveryActionExecutor {
         return await runAppleScript("""
         tell application "\(escapedAppleScriptString(appName))" to quit
         """)
+    }
+
+    private static func closeFrontmostBrowserTabWithKeyboardShortcut(context: ContextSnapshot?, appName: String) async -> Bool {
+        guard AXIsProcessTrusted() else { return false }
+        let activated = await activateApplication(context: context, appName: appName)
+        guard activated else { return false }
+        try? await Task.sleep(nanoseconds: 180_000_000)
+
+        return await Task.detached(priority: .userInitiated) {
+            guard let source = CGEventSource(stateID: .hidSystemState),
+                  let keyDown = CGEvent(keyboardEventSource: source, virtualKey: CGKeyCode(13), keyDown: true),
+                  let keyUp = CGEvent(keyboardEventSource: source, virtualKey: CGKeyCode(13), keyDown: false) else {
+                return false
+            }
+            keyDown.flags = .maskCommand
+            keyUp.flags = .maskCommand
+            keyDown.post(tap: .cghidEventTap)
+            keyUp.post(tap: .cghidEventTap)
+            return true
+        }.value
+    }
+
+    @MainActor
+    private static func activateApplication(context: ContextSnapshot?, appName: String) -> Bool {
+        let runningApplications = NSWorkspace.shared.runningApplications
+        let application = context?.bundleIdentifier.flatMap { bundleIdentifier in
+            runningApplications.first { $0.bundleIdentifier == bundleIdentifier }
+        } ?? runningApplications.first {
+            $0.localizedName?.localizedCaseInsensitiveCompare(appName) == .orderedSame
+        }
+        return application?.activate(options: [.activateIgnoringOtherApps]) ?? false
     }
 
     private static func browserApplicationName(from context: ContextSnapshot?) -> String? {
@@ -975,7 +1024,8 @@ private struct SignalRow: View {
             Text(value)
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(FGTheme.secondary)
-                .lineLimit(2)
+                .lineLimit(3)
+                .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
