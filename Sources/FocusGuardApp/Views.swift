@@ -67,6 +67,8 @@ struct FocusGuardPopoverView: View {
                                 }
                                 contextPanel
                             case .settings:
+                                aiSettingsPanel
+                                aiUsagePanel
                                 setupPanel
                             case .log:
                                 diagnosticsPanel
@@ -348,6 +350,70 @@ struct FocusGuardPopoverView: View {
         }
     }
 
+    private var aiSettingsPanel: some View {
+        SectionBlock(title: "AI Classifier", actionTitle: nil, systemImage: "brain.head.profile") {
+            VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("MODEL")
+                        .font(.system(size: 10, weight: .bold))
+                        .tracking(1.2)
+                        .foregroundStyle(FGTheme.tertiary)
+                    TextField("gpt-5.3-codex", text: $store.classifierSettings.model)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 12, weight: .medium, design: .monospaced))
+                        .foregroundStyle(FGTheme.primary)
+                        .padding(9)
+                        .background(Color.black.opacity(0.16), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                .stroke(FGTheme.stroke)
+                        )
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("REASONING")
+                        .font(.system(size: 10, weight: .bold))
+                        .tracking(1.2)
+                        .foregroundStyle(FGTheme.tertiary)
+                    Picker("Reasoning", selection: $store.classifierSettings.reasoningEffort) {
+                        ForEach(AIReasoningEffort.allCases) { effort in
+                            Text(effort.displayText).tag(effort)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("CADENCE")
+                        .font(.system(size: 10, weight: .bold))
+                        .tracking(1.2)
+                        .foregroundStyle(FGTheme.tertiary)
+                    Picker("Cadence", selection: $store.classifierSettings.cadence) {
+                        ForEach(AICheckCadence.allCases) { cadence in
+                            Text(cadence.displayText).tag(cadence)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                }
+            }
+        }
+    }
+
+    private var aiUsagePanel: some View {
+        let stats = store.aiUsageStats
+        return SectionBlock(title: "AI Usage", actionTitle: nil, systemImage: "chart.bar.xaxis") {
+            SignalRow(systemImage: "cpu", label: "Model", value: store.classifierSettings.normalizedModel)
+            SignalRow(systemImage: "brain", label: "AI checks", value: "\(stats.aiChecks)")
+            SignalRow(systemImage: "arrow.triangle.2.circlepath", label: "Reused", value: "\(stats.reusedDecisions)")
+            SignalRow(systemImage: "checkmark.shield", label: "Rules", value: "\(stats.localRuleDecisions)")
+            SignalRow(systemImage: "timer", label: "Cooldown", value: "\(stats.cooldownSkips)")
+            SignalRow(systemImage: "camera.viewfinder", label: "Shots sent", value: "\(stats.screenshotsSent)")
+            SignalRow(systemImage: "dollarsign.circle", label: "Est. cost", value: formatCost(stats.estimatedCostUSD))
+        }
+    }
+
     private var diagnosticsPanel: some View {
         SectionBlock(title: "Console", actionTitle: nil, systemImage: "terminal") {
             if diagnostics.entries.isEmpty {
@@ -412,6 +478,16 @@ struct FocusGuardPopoverView: View {
         let minutes = Int(time) / 60
         let seconds = Int(time) % 60
         return String(format: "%02d:%02d", minutes, seconds)
+    }
+
+    private func formatCost(_ cost: Double) -> String {
+        if cost <= 0 {
+            return "$0.00"
+        }
+        if cost < 0.01 {
+            return String(format: "$%.4f", cost)
+        }
+        return String(format: "$%.2f", cost)
     }
 
     private func classificationIcon(_ status: ClassifierStatus) -> String {

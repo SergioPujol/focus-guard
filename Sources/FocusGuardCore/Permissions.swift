@@ -72,8 +72,8 @@ public struct PermissionManager: Sendable {
         self.classifier = classifier
     }
 
-    public func snapshot() async -> PermissionSnapshot {
-        let codex = await classifier.preflight()
+    public func snapshot(classifierSettings: AIClassifierSettings = .default) async -> PermissionSnapshot {
+        let codex = await classifier.preflight(settings: classifierSettings)
         return PermissionSnapshot(
             accessibilityGranted: Self.checkAccessibility(),
             screenRecordingGranted: Self.checkScreenRecording(),

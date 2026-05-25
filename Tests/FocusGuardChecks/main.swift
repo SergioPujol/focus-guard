@@ -33,6 +33,34 @@ func sampleContext(
     )
 }
 
+actor RecordedCommandCalls {
+    private var calls: [[String]] = []
+
+    func append(_ arguments: [String]) {
+        calls.append(arguments)
+    }
+
+    func first() -> [String]? {
+        calls.first
+    }
+}
+
+final class RecordingCommandRunner: CommandRunning, @unchecked Sendable {
+    let recorder = RecordedCommandCalls()
+
+    func run(_ executable: String, arguments: [String], timeoutSeconds: TimeInterval) async throws -> CommandResult {
+        await recorder.append(arguments)
+        return CommandResult(
+            exitCode: 0,
+            standardOutput: """
+            {"status":"focused","confidence":0.91,"reason":"The current context supports the promise.","recovery_action":"none","interrupt":false}
+            """,
+            standardError: "",
+            duration: 0.01
+        )
+    }
+}
+
 let checks: [(String, () throws -> Void)] = [
     ("session allow beats session block", {
         let engine = RuleEngine()
@@ -200,6 +228,68 @@ let checks: [(String, () throws -> Void)] = [
         try expect(items.first { $0.kind == .accessibility }?.status == .missing, "accessibility")
         try expect(items.first { $0.kind == .screenRecording }?.status == .ready, "screen recording")
         try expect(items.first { $0.kind == .codex }?.fix == "not logged in", "codex error")
+    }),
+    ("AI classifier settings default to cheap model", {
+        let settings = AIClassifierSettings.default
+        try expect(settings.normalizedModel == "gpt-5.3-codex", "model")
+        try expect(settings.reasoningEffort == .low, "reasoning")
+        try expect(settings.cadence == .balanced, "cadence")
+    }),
+    ("AI context fingerprint changes on promise and domain", {
+        let first = AIContextFingerprint(promise: "Write README", context: sampleContext(url: "https://x.com/home"))
+        let same = AIContextFingerprint(promise: " Write   README ", context: sampleContext(url: "https://x.com/messages"))
+        let differentPromise = AIContextFingerprint(promise: "Review PR", context: sampleContext(url: "https://x.com/home"))
+        let differentDomain = AIContextFingerprint(promise: "Write README", context: sampleContext(url: "https://developer.apple.com"))
+
+        try expect(first == same, "same promise and domain")
+        try expect(first != differentPromise, "promise should matter")
+        try expect(first != differentDomain, "domain should matter")
+    }),
+    ("AI decision memory reuses fresh matching decisions only", {
+        let settings = AIClassifierSettings(cadence: .balanced)
+        let fingerprint = AIContextFingerprint(promise: "Write README", context: sampleContext())
+        let result = ClassificationResult(status: .focused, confidence: 0.9, reason: "ok", recoveryAction: .none, interrupt: false)
+        let memory = AIContextDecision(
+            fingerprint: fingerprint,
+            result: result,
+            decidedAt: Date(timeIntervalSince1970: 100),
+            model: settings.normalizedModel
+        )
+
+        try expect(memory.canReuse(for: fingerprint, settings: settings, now: Date(timeIntervalSince1970: 180)), "fresh match")
+        try expect(memory.canReuse(for: fingerprint, settings: settings, now: Date(timeIntervalSince1970: 230)) == false, "stale match")
+    }),
+    ("AI usage stats estimate Codex cost below GPT-5.5", {
+        var stats = AIClassifierUsageStats()
+        stats.recordAICheck(settings: .default, screenshotSent: false)
+        try expect(stats.aiChecks == 1, "checks")
+        try expect(stats.screenshotsSent == 0, "screenshots")
+        try expect(stats.estimatedInputTokens == 2_000, "input tokens")
+        try expect(stats.estimatedOutputTokens == 500, "output tokens")
+        try expect(stats.estimatedCostUSD < 0.012, "Codex estimate should stay below the old GPT-5.5 estimate")
+    })
+]
+
+let asyncChecks: [(String, () async throws -> Void)] = [
+    ("Codex CLI classifier passes explicit model and reasoning", {
+        let runner = RecordingCommandRunner()
+        let classifier = CodexCliClassifier(codexPath: "/tmp/codex", runner: runner)
+        let settings = AIClassifierSettings(model: "gpt-5.3-codex", reasoningEffort: .low, cadence: .balanced)
+
+        _ = await classifier.classify(
+            promise: "Write README",
+            context: sampleContext(),
+            screenshotPath: nil,
+            settings: settings
+        )
+
+        guard let arguments = await runner.recorder.first() else {
+            throw CheckFailure.failed("expected runner call")
+        }
+        try expect(arguments.contains("--model"), "model flag")
+        try expect(arguments.contains("gpt-5.3-codex"), "model value")
+        try expect(arguments.contains("-c"), "config flag")
+        try expect(arguments.contains("model_reasoning_effort=\"low\""), "reasoning config")
     })
 ]
 
@@ -207,6 +297,16 @@ var failed = 0
 for (name, check) in checks {
     do {
         try check()
+        print("PASS \(name)")
+    } catch {
+        failed += 1
+        print("FAIL \(name): \(error)")
+    }
+}
+
+for (name, check) in asyncChecks {
+    do {
+        try await check()
         print("PASS \(name)")
     } catch {
         failed += 1

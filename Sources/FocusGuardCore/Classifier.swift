@@ -7,7 +7,12 @@ public enum ClassifierError: Error, Equatable {
 }
 
 public protocol Classifier: Sendable {
-    func classify(promise: String, context: ContextSnapshot, screenshotPath: String?) async -> ClassificationResult
+    func classify(
+        promise: String,
+        context: ContextSnapshot,
+        screenshotPath: String?,
+        settings: AIClassifierSettings
+    ) async -> ClassificationResult
 }
 
 public protocol CommandRunning: Sendable {
@@ -135,7 +140,12 @@ public struct CodexCliClassifier: Classifier, Sendable {
         self.timeoutSeconds = timeoutSeconds
     }
 
-    public func classify(promise: String, context: ContextSnapshot, screenshotPath: String? = nil) async -> ClassificationResult {
+    public func classify(
+        promise: String,
+        context: ContextSnapshot,
+        screenshotPath: String? = nil,
+        settings: AIClassifierSettings = .default
+    ) async -> ClassificationResult {
         let outputURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("focusguard-codex-\(UUID().uuidString).json")
         defer { try? FileManager.default.removeItem(at: outputURL) }
@@ -146,7 +156,14 @@ public struct CodexCliClassifier: Classifier, Sendable {
         }
 
         do {
-            var arguments = ["exec", "--ephemeral"]
+            var arguments = [
+                "exec",
+                "--ephemeral",
+                "--model",
+                settings.normalizedModel,
+                "-c",
+                "model_reasoning_effort=\"\(settings.reasoningEffort.rawValue)\""
+            ]
             if let screenshotPath {
                 arguments.append(contentsOf: ["--image", screenshotPath])
             }
@@ -166,7 +183,7 @@ public struct CodexCliClassifier: Classifier, Sendable {
         }
     }
 
-    public func preflight() async -> CodexPreflightResult {
+    public func preflight(settings: AIClassifierSettings = .default) async -> CodexPreflightResult {
         guard FileManager.default.isExecutableFile(atPath: codexPath) else {
             return CodexPreflightResult(binaryPath: nil, version: nil, authUsable: false, testPromptSucceeded: false, lastError: "Codex binary not found at \(codexPath).")
         }
@@ -175,7 +192,15 @@ public struct CodexCliClassifier: Classifier, Sendable {
             let version = try await runner.run(codexPath, arguments: ["--version"], timeoutSeconds: 3)
             let test = try await runner.run(
                 codexPath,
-                arguments: ["exec", "--ephemeral", "Return exactly {\"ok\":true}"],
+                arguments: [
+                    "exec",
+                    "--ephemeral",
+                    "--model",
+                    settings.normalizedModel,
+                    "-c",
+                    "model_reasoning_effort=\"\(settings.reasoningEffort.rawValue)\"",
+                    "Return exactly {\"ok\":true}"
+                ],
                 timeoutSeconds: min(timeoutSeconds, 8)
             )
             return CodexPreflightResult(
