@@ -61,7 +61,11 @@ if [[ -n "${NOTARY_PROFILE:-}" ]]; then
     echo "NOTARY_PROFILE requires SIGNING_IDENTITY because notarization only applies to Developer ID signed apps." >&2
     exit 1
   fi
-  xcrun notarytool submit "$ZIP_PATH" --keychain-profile "$NOTARY_PROFILE" --wait
+  notary_args=(--keychain-profile "$NOTARY_PROFILE")
+  if [[ -n "${NOTARY_KEYCHAIN:-}" ]]; then
+    notary_args+=(--keychain "$NOTARY_KEYCHAIN")
+  fi
+  xcrun notarytool submit "$ZIP_PATH" "${notary_args[@]}" --wait
   xcrun stapler staple "$APP_PATH"
   rm -f "$ZIP_PATH"
   ditto -c -k --keepParent "$APP_PATH" "$ZIP_PATH"

@@ -24,12 +24,12 @@ The v1 classifier boundary supports Codex CLI. If Codex is unavailable, logged o
 
 Current public-release target:
 
-1. Download `FocusGuard-macOS.zip` from the release page.
+1. Download `FocusGuard-macOS.zip` from the [latest release](https://github.com/SergioPujol/focus-guard/releases/latest/download/FocusGuard-macOS.zip).
 2. Open the zip and move `FocusGuard.app` to Applications.
 3. Open FocusGuard from Applications.
 4. Click the menu-bar icon and finish the setup checklist.
 
-This is the intended no-terminal install path for users. A public download should be Developer ID signed and notarized before being promoted on the website, otherwise macOS Gatekeeper will create avoidable trust warnings.
+This is the intended no-terminal install path for users. It becomes available after a signed and notarized GitHub Release is published. See [docs/release.md](docs/release.md) for the release workflow.
 
 For local development, build and launch from the repository root:
 

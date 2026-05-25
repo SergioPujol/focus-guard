@@ -1,0 +1,118 @@
+name: Release macOS App
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    name: Package FocusGuard
+    runs-on: macos-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Run checks
+        run: swift run FocusGuardChecks
+
+      - name: Build unsigned app artifact
+        if: github.event_name == 'workflow_dispatch'
+        run: scripts/package-macos-app.sh
+
+      - name: Validate release secrets
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          MACOS_SIGNING_CERTIFICATE_P12: ${{ secrets.MACOS_SIGNING_CERTIFICATE_P12 }}
+          MACOS_SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_SIGNING_CERTIFICATE_PASSWORD }}
+          MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+        run: |
+          missing=0
+          for name in \
+            APPLE_APP_SPECIFIC_PASSWORD \
+            APPLE_ID \
+            APPLE_TEAM_ID \
+            MACOS_SIGNING_CERTIFICATE_P12 \
+            MACOS_SIGNING_CERTIFICATE_PASSWORD \
+            MACOS_SIGNING_IDENTITY
+          do
+            if [[ -z "${!name}" ]]; then
+              echo "::error::$name is required for signed and notarized releases."
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Import Developer ID certificate
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          CERTIFICATE_BASE64: ${{ secrets.MACOS_SIGNING_CERTIFICATE_P12 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.MACOS_SIGNING_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.MACOS_CI_KEYCHAIN_PASSWORD || github.run_id }}
+        run: |
+          CERTIFICATE_PATH="$RUNNER_TEMP/focusguard-certificate.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/focusguard-signing.keychain-db"
+
+          echo "$CERTIFICATE_BASE64" | base64 --decode > "$CERTIFICATE_PATH"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE_PATH" -P "$CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+          security default-keychain -s "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
+
+      - name: Store notarization credentials
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          xcrun notarytool store-credentials focusguard-notary \
+            --apple-id "$APPLE_ID" \
+            --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+            --keychain "$KEYCHAIN_PATH"
+
+      - name: Build signed and notarized release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          NOTARY_KEYCHAIN: ${{ env.KEYCHAIN_PATH }}
+          NOTARY_PROFILE: focusguard-notary
+          SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}" scripts/package-macos-app.sh
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FocusGuard-macOS
+          path: .build/release-artifacts/FocusGuard-macOS.zip
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          args=(
+            release create "$GITHUB_REF_NAME"
+            ".build/release-artifacts/FocusGuard-macOS.zip#FocusGuard-macOS.zip"
+            --repo "$GITHUB_REPOSITORY"
+            --generate-notes
+            --title "$GITHUB_REF_NAME"
+            --verify-tag
+          )
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
+            args+=(--prerelease)
+          fi
+          gh "${args[@]}"
