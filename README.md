@@ -22,7 +22,16 @@ The v1 classifier boundary supports Codex CLI. If Codex is unavailable, logged o
 
 ## Install
 
-Build and launch from the repository root:
+Current public-release target:
+
+1. Download `FocusGuard-macOS.zip` from the release page.
+2. Open the zip and move `FocusGuard.app` to Applications.
+3. Open FocusGuard from Applications.
+4. Click the menu-bar icon and finish the setup checklist.
+
+This is the intended no-terminal install path for users. A public download should be Developer ID signed and notarized before being promoted on the website, otherwise macOS Gatekeeper will create avoidable trust warnings.
+
+For local development, build and launch from the repository root:
 
 ```sh
 swift build
@@ -114,6 +123,20 @@ Launch the app:
 .build/debug/FocusGuard
 ```
 
+Create a release zip for manual testing:
+
+```sh
+scripts/package-macos-app.sh
+```
+
+Create a signed and notarized release zip:
+
+```sh
+SIGNING_IDENTITY="Developer ID Application: Your Name (TEAMID)" \
+NOTARY_PROFILE="focusguard-notary" \
+scripts/package-macos-app.sh
+```
+
 This Command Line Tools environment did not provide Swift Testing or XCTest modules, so automated checks are packaged as a small executable instead of `swift test`.
 
 ## Troubleshooting
@@ -144,7 +167,7 @@ Screen capture is blocked:
 
 ## Known Limitations
 
-- The app is not currently signed or bundled as a production `.app`.
+- The app is not currently published as a signed and notarized production download.
 - Recovery actions show fallback instructions instead of performing browser/app automation.
 - ScreenCaptureKit capture is not wired yet; `ScreenshotBuffer` is implemented and tested as the safe storage boundary.
 - Codex calls are slow and token-heavy for high-frequency polling.
