@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        NSApp.applicationIconImage = FocusGuardIcon.applicationIconImage()
         statusController = StatusBarController(store: store)
         interruptionPresenter = InterruptionPresenter(store: store)
         store.refreshSetup()
@@ -35,7 +36,7 @@ final class StatusBarController {
         popover.contentViewController = NSHostingController(rootView: FocusGuardPopoverView(store: store))
 
         if let button = statusItem.button {
-            button.image = NSImage(systemSymbolName: "shield.lefthalf.filled", accessibilityDescription: "FocusGuard")
+            button.image = FocusGuardIcon.statusBarImage()
             button.imagePosition = .imageOnly
             button.title = ""
             button.target = self

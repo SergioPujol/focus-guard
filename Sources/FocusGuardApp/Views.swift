@@ -35,6 +35,7 @@ struct FocusGuardPopoverView: View {
     @ObservedObject var store: SessionStore
     @ObservedObject private var diagnostics: DiagnosticsStore
     @State private var selectedPage: PopoverPage = .overview
+    @State private var showPromiseRequired = false
 
     init(store: SessionStore) {
         self.store = store
@@ -100,9 +101,7 @@ struct FocusGuardPopoverView: View {
 
     private var sidebarNavigation: some View {
         VStack(spacing: 12) {
-            Image(systemName: "shield.lefthalf.filled")
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(FGTheme.primary)
+            FocusGuardMark(size: 18)
                 .frame(width: 34, height: 34)
                 .padding(.top, 14)
 
@@ -121,6 +120,7 @@ struct FocusGuardPopoverView: View {
                 Image(systemName: "xmark")
                     .font(.system(size: 12, weight: .semibold))
                     .frame(width: 34, height: 34)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .foregroundStyle(FGTheme.secondary)
@@ -153,6 +153,7 @@ struct FocusGuardPopoverView: View {
                     .frame(width: 34, height: 34)
             }
             .frame(width: 34, height: 34)
+            .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
         }
         .buttonStyle(.plain)
         .help(page.rawValue)
@@ -224,6 +225,16 @@ struct FocusGuardPopoverView: View {
                             RoundedRectangle(cornerRadius: 8, style: .continuous)
                                 .stroke(FGTheme.stroke)
                         )
+                        .onChange(of: store.promiseDraft) { newValue in
+                            if newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+                                showPromiseRequired = false
+                            }
+                        }
+                    if showPromiseRequired {
+                        Label("Type a promise before starting.", systemImage: "exclamationmark.circle.fill")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(FGTheme.amber)
+                    }
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
@@ -240,7 +251,7 @@ struct FocusGuardPopoverView: View {
                 }
 
                 Button {
-                    store.startSession()
+                    startPromise()
                 } label: {
                     HStack {
                         Image(systemName: "play.fill")
@@ -254,11 +265,12 @@ struct FocusGuardPopoverView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.vertical, 10)
                     .padding(.horizontal, 12)
+                    .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(Color.black.opacity(0.88))
                 .background(FGTheme.primary, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    .keyboardShortcut(.defaultAction)
+                .keyboardShortcut(.defaultAction)
             }
         }
     }
@@ -287,6 +299,7 @@ struct FocusGuardPopoverView: View {
                     .foregroundStyle(FGTheme.tertiary)
             }
             .padding(12)
+            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             .background(FGTheme.amber.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -383,6 +396,16 @@ struct FocusGuardPopoverView: View {
     private func sessionProgress(_ session: FocusSession) -> Double {
         guard session.durationSeconds > 0 else { return 0 }
         return 1 - (store.remainingSeconds / session.durationSeconds)
+    }
+
+    private func startPromise() {
+        let promise = store.promiseDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard promise.isEmpty == false else {
+            showPromiseRequired = true
+            return
+        }
+        showPromiseRequired = false
+        store.startSession()
     }
 
     private func formatTime(_ time: TimeInterval) -> String {
@@ -564,9 +587,12 @@ struct InterruptionView: View {
 
     private var interruptionTitleBar: some View {
         HStack(spacing: 8) {
-            Image(systemName: "shield.lefthalf.filled")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(FGTheme.secondary)
+            FocusGuardMark(
+                size: 13,
+                baseColor: FGTheme.secondary,
+                cutoutColor: Color.black.opacity(0.68),
+                accentColor: FGTheme.focus.opacity(0.9)
+            )
             Text("FocusGuard")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(FGTheme.secondary)
@@ -586,6 +612,7 @@ struct InterruptionView: View {
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
                     .stroke(FGTheme.stroke)
             )
+            .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
             .keyboardShortcut(.cancelAction)
             .help("Dismiss")
         }
@@ -923,14 +950,17 @@ private struct SetupRow: View {
                         .help(item.fix)
                     Spacer(minLength: 0)
                     if canRequestPermission {
-                        Button("Request") {
+                        Button {
                             openSettings()
+                        } label: {
+                            Text("Request")
+                                .font(.system(size: 10, weight: .bold))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                         }
                         .buttonStyle(.plain)
-                        .font(.system(size: 10, weight: .bold))
                         .foregroundStyle(FGTheme.primary)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
                         .background(FGTheme.elevatedStrong, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                         .overlay(
                             RoundedRectangle(cornerRadius: 6, style: .continuous)
@@ -991,6 +1021,7 @@ private struct CommandButton: View {
                 .lineLimit(1)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 9)
+                .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
         .buttonStyle(.plain)
         .foregroundStyle(role == .destructive ? FGTheme.warning : FGTheme.primary)
@@ -1013,6 +1044,7 @@ private struct InterruptionButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
+            .frame(maxWidth: .infinity)
             .font(.system(size: 12, weight: .semibold))
             .padding(.vertical, 10)
             .foregroundStyle(foregroundColor)
