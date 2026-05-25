@@ -245,7 +245,7 @@ struct FocusGuardPopoverView: View {
                     Picker("Duration", selection: $store.durationMinutes) {
                         Text("10 min").tag(10)
                         Text("25 min").tag(25)
-                        Text("45 min").tag(45)
+                        Text("1h").tag(60)
                     }
                     .pickerStyle(.segmented)
                 }
