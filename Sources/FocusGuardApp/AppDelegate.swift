@@ -112,7 +112,7 @@ final class InterruptionPresenter {
         }
 
         let newWindow = FocusInterruptionPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 520, height: 460),
+            contentRect: NSRect(x: 0, y: 0, width: InterruptionPanelMetrics.width, height: InterruptionPanelMetrics.height),
             styleMask: [.borderless],
             backing: .buffered,
             defer: false
@@ -124,7 +124,7 @@ final class InterruptionPresenter {
         newWindow.hasShadow = true
         newWindow.isOpaque = false
         newWindow.backgroundColor = .clear
-        newWindow.setContentSize(NSSize(width: 520, height: 460))
+        newWindow.setContentSize(InterruptionPanelMetrics.size)
         newWindow.center()
         window = newWindow
         NSApp.activate(ignoringOtherApps: true)

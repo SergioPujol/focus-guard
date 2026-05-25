@@ -41,6 +41,7 @@ public final class SessionStore: ObservableObject {
     private var samplerTask: Task<Void, Never>?
     private var lastCodexAttemptAt: Date?
     private var aiDecisionMemory: AIContextDecision?
+    private var interruptionPausedAt: Date?
 
     public init(
         diagnostics: DiagnosticsStore = DiagnosticsStore(),
@@ -89,7 +90,7 @@ public final class SessionStore: ObservableObject {
             return
         }
 
-        activeRecoveryPlan = nil
+        setRecoveryPlan(nil)
         lastClassification = nil
         lastRuleDecision = .noDecision
         correctionNotice = nil
@@ -120,18 +121,18 @@ public final class SessionStore: ObservableObject {
         active.durationSeconds = TimeInterval(minutes * 60)
         session = active
         remainingSeconds = active.durationSeconds
+        interruptionPausedAt = nil
         activeRecoveryPlan = nil
         diagnostics.record(.info, "Restarted timer for \(minutes) minutes.")
     }
 
     public func dismissInterruption() {
-        activeRecoveryPlan = nil
+        setRecoveryPlan(nil)
     }
 
     @discardableResult
     public func allowCurrentContext(scope: RuleScope = .session) -> Bool {
         guard let context = currentContext else {
-            activeRecoveryPlan = nil
             diagnostics.record(.warning, "Could not save allow correction because no current context was available.")
             return false
         }
@@ -152,7 +153,7 @@ public final class SessionStore: ObservableObject {
         do {
             try ruleStore.save(rule)
             correctionNotice = "Allowed \(target.label)."
-            activeRecoveryPlan = nil
+            setRecoveryPlan(nil)
             diagnostics.record(.info, "Saved allow correction for \(target.label).")
             aiDecisionMemory = nil
             return true
@@ -165,7 +166,6 @@ public final class SessionStore: ObservableObject {
     @discardableResult
     public func blockCurrentContextForSession() -> Bool {
         guard let context = currentContext else {
-            activeRecoveryPlan = nil
             diagnostics.record(.warning, "Could not save block correction because no current context was available.")
             return false
         }
@@ -206,6 +206,7 @@ public final class SessionStore: ObservableObject {
                 guard let self else { return }
                 await MainActor.run {
                     guard let session = self.session else { return }
+                    guard self.interruptionPausedAt == nil else { return }
                     self.remainingSeconds = session.remainingSeconds()
                     if session.isDone() {
                         self.completeSession(diagnostic: "Promise timer completed.")
@@ -228,6 +229,7 @@ public final class SessionStore: ObservableObject {
 
     private func evaluateCurrentContext() async {
         guard let activeSession = session, activeSession.isDone() == false else { return }
+        guard activeRecoveryPlan?.shouldInterrupt != true else { return }
 
         let state = permissionSnapshot.screenRecordingGranted ? CaptureState.activeLocally : .blockedByPermission
         let context = await sampler.sample(captureState: state)
@@ -243,7 +245,7 @@ public final class SessionStore: ObservableObject {
                 interrupt: false
             )
             lastClassification = result
-            activeRecoveryPlan = recoveryPlanner.plan(classification: result, context: context, session: activeSession)
+            setRecoveryPlan(recoveryPlanner.plan(classification: result, context: context, session: activeSession))
             diagnostics.record(.info, "Context is inactive, not distracted.")
             return
         }
@@ -255,19 +257,19 @@ public final class SessionStore: ObservableObject {
         case .allow(let reason):
             aiUsageStats.recordLocalRuleDecision()
             lastClassification = ClassificationResult(status: .focused, confidence: 1, reason: reason, recoveryAction: .none, interrupt: false)
-            activeRecoveryPlan = nil
+            setRecoveryPlan(nil)
             return
         case .block(let reason, let action):
             aiUsageStats.recordLocalRuleDecision()
             let result = ClassificationResult(status: .distracted, confidence: 1, reason: reason, recoveryAction: action, interrupt: true)
             lastClassification = result
-            activeRecoveryPlan = recoveryPlanner.plan(classification: result, context: context, session: activeSession)
+            setRecoveryPlan(recoveryPlanner.plan(classification: result, context: context, session: activeSession))
             diagnostics.record(.warning, "Rule interruption: \(reason)")
             return
         case .conflict(let reason):
             aiUsageStats.recordLocalRuleDecision()
             lastClassification = ClassificationResult(status: .unknown, confidence: 0, reason: reason, recoveryAction: .none, interrupt: false)
-            activeRecoveryPlan = nil
+            setRecoveryPlan(nil)
             diagnostics.record(.warning, reason)
             return
         case .noDecision:
@@ -288,7 +290,7 @@ public final class SessionStore: ObservableObject {
             aiUsageStats.recordReuse()
             lastClassification = memory.result
             let plan = recoveryPlanner.plan(classification: memory.result, context: context, session: activeSession)
-            activeRecoveryPlan = plan.shouldInterrupt ? plan : nil
+            setRecoveryPlan(plan.shouldInterrupt ? plan : nil)
             diagnostics.record(.info, "Reused AI decision for unchanged context.")
             return
         }
@@ -305,7 +307,7 @@ public final class SessionStore: ObservableObject {
                 recoveryAction: .none,
                 interrupt: false
             )
-            activeRecoveryPlan = nil
+            setRecoveryPlan(nil)
             diagnostics.record(.info, "AI check delayed by cadence after context changed.")
             return
         }
@@ -330,8 +332,36 @@ public final class SessionStore: ObservableObject {
             )
         }
         let plan = recoveryPlanner.plan(classification: result, context: context, session: activeSession)
-        activeRecoveryPlan = plan.shouldInterrupt ? plan : nil
+        setRecoveryPlan(plan.shouldInterrupt ? plan : nil)
         diagnostics.record(.info, "Codex \(classifierSettings.normalizedModel) classified \(result.status.rawValue) at \(String(format: "%.2f", result.confidence)).")
+    }
+
+    private func setRecoveryPlan(_ plan: RecoveryPlan?) {
+        if plan?.shouldInterrupt == true {
+            pauseTimerForInterruption()
+        } else {
+            resumeTimerAfterInterruption()
+        }
+        activeRecoveryPlan = plan
+    }
+
+    private func pauseTimerForInterruption() {
+        guard interruptionPausedAt == nil else { return }
+        remainingSeconds = session?.remainingSeconds() ?? remainingSeconds
+        interruptionPausedAt = Date()
+        diagnostics.record(.info, "Paused timer for interruption.")
+    }
+
+    private func resumeTimerAfterInterruption() {
+        guard let interruptionPausedAt else { return }
+        if var active = session {
+            let pausedDuration = max(0, Date().timeIntervalSince(interruptionPausedAt))
+            active.startedAt = active.startedAt.addingTimeInterval(pausedDuration)
+            session = active
+            remainingSeconds = active.remainingSeconds()
+            diagnostics.record(.info, "Resumed timer after interruption.")
+        }
+        self.interruptionPausedAt = nil
     }
 
     private func completeSession(diagnostic: String) {
@@ -342,6 +372,7 @@ public final class SessionStore: ObservableObject {
         samplerTask = nil
         session = nil
         remainingSeconds = 0
+        interruptionPausedAt = nil
         activeRecoveryPlan = nil
         captureState = .inactive
         screenshotBuffer.clear()
