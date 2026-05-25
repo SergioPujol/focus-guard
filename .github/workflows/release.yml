@@ -22,11 +22,11 @@ jobs:
         run: swift run FocusGuardChecks
 
       - name: Build unsigned app artifact
-        if: github.event_name == 'workflow_dispatch'
+        if: github.event_name == 'workflow_dispatch' || vars.RELEASE_SIGNED != 'true'
         run: scripts/package-macos-app.sh
 
       - name: Validate release secrets
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') && vars.RELEASE_SIGNED == 'true'
         env:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
@@ -52,7 +52,7 @@ jobs:
           exit "$missing"
 
       - name: Import Developer ID certificate
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') && vars.RELEASE_SIGNED == 'true'
         env:
           CERTIFICATE_BASE64: ${{ secrets.MACOS_SIGNING_CERTIFICATE_P12 }}
           CERTIFICATE_PASSWORD: ${{ secrets.MACOS_SIGNING_CERTIFICATE_PASSWORD }}
@@ -72,7 +72,7 @@ jobs:
           echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
 
       - name: Store notarization credentials
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') && vars.RELEASE_SIGNED == 'true'
         env:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
@@ -85,7 +85,7 @@ jobs:
             --keychain "$KEYCHAIN_PATH"
 
       - name: Build signed and notarized release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') && vars.RELEASE_SIGNED == 'true'
         env:
           NOTARY_KEYCHAIN: ${{ env.KEYCHAIN_PATH }}
           NOTARY_PROFILE: focusguard-notary
@@ -101,8 +101,6 @@ jobs:
 
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           args=(
             release create "$GITHUB_REF_NAME"
@@ -116,3 +114,5 @@ jobs:
             args+=(--prerelease)
           fi
           gh "${args[@]}"
+        env:
+          GH_TOKEN: ${{ github.token }}

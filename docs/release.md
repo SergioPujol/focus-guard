@@ -1,8 +1,44 @@
 # Release Process
 
-FocusGuard's public install path depends on a GitHub Release containing `FocusGuard-macOS.zip`.
+FocusGuard's current release path is an unsigned developer preview. This avoids Apple Developer Program cost while still giving testers a downloadable `FocusGuard.app` zip.
 
-## One-Time Setup
+## Current Preview Release
+
+Preview releases are created from version tags such as `v0.1.0`.
+
+1. Confirm `main` is clean and checks pass.
+2. Choose the next version.
+3. Create and push the tag:
+
+   ```sh
+   git switch main
+   git pull
+   git tag v0.1.0
+   git push origin v0.1.0
+   ```
+
+4. GitHub Actions runs checks, builds `FocusGuard.app`, zips it as `FocusGuard-macOS.zip`, and publishes a GitHub Release.
+5. Download the release asset on a Mac and verify it opens from Applications.
+
+Because the app is unsigned, macOS may block the first launch. Testers can Control-click `FocusGuard.app`, choose `Open`, and confirm the prompt.
+
+## Latest Download URL
+
+Use this URL for the install button:
+
+```text
+https://github.com/SergioPujol/focus-guard/releases/latest/download/FocusGuard-macOS.zip
+```
+
+It points to the latest non-draft release, so it stays current as new versions are tagged.
+
+## Manual Test Build
+
+Run the `Release macOS App` workflow manually from GitHub Actions to create an unsigned workflow artifact without creating a GitHub Release.
+
+## Future Signed Release
+
+If the project later needs a polished public install experience, enroll in the Apple Developer Program and configure signed releases.
 
 Add these repository secrets in GitHub:
 
@@ -14,36 +50,6 @@ Add these repository secrets in GitHub:
 - `APPLE_APP_SPECIFIC_PASSWORD`: app-specific password for notarization
 - `MACOS_CI_KEYCHAIN_PASSWORD`: optional temporary keychain password for CI
 
-Do not publish a public release until signing and notarization are configured. Unsigned builds are useful for internal testing, but they create avoidable Gatekeeper warnings for users.
+Then set the repository variable `RELEASE_SIGNED` to `true`.
 
-## Internal Test Build
-
-Run the `Release macOS App` workflow manually from GitHub Actions.
-
-Manual runs build an unsigned `FocusGuard-macOS.zip` workflow artifact only. They do not create a GitHub Release.
-
-## Public Release
-
-1. Confirm `main` is green.
-2. Choose the next version, for example `v0.1.0`.
-3. Create and push the tag:
-
-   ```sh
-   git switch main
-   git pull
-   git tag v0.1.0
-   git push origin v0.1.0
-   ```
-
-4. GitHub Actions builds, signs, notarizes, staples, zips, and publishes `FocusGuard-macOS.zip` to the GitHub Release.
-5. Download the release asset on a clean Mac and verify it opens from Applications without Terminal.
-
-## Keeping The Website Current
-
-The website should link to the latest release asset, not to a hard-coded version:
-
-```text
-https://github.com/SergioPujol/focus-guard/releases/latest/download/FocusGuard-macOS.zip
-```
-
-That URL keeps the install button current whenever a new non-prerelease GitHub Release is published.
+With `RELEASE_SIGNED=true`, version tags build, sign, notarize, staple, zip, and publish the same release asset with a polished macOS trust path.

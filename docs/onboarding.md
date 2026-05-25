@@ -4,7 +4,7 @@ Date: 2026-05-25
 
 ## User Perspective
 
-FocusGuard is a native macOS menu-bar product. The user expectation is not "install a developer tool"; it is "download a Mac app, open it, grant the permissions it needs, and start a promise."
+FocusGuard is a native macOS menu-bar product. The ideal user expectation is "download a Mac app, open it, grant the permissions it needs, and start a promise."
 
 Today, the repo can only be launched through a terminal command:
 
@@ -13,7 +13,7 @@ swift build
 .build/debug/FocusGuard
 ```
 
-That is acceptable for contributors, but it is not acceptable as the default onboarding path for real users. It adds several failure points before the user sees value: installing developer tools, finding the repository root, building the app, launching a hidden accessory executable, and trusting an unsigned build.
+That is acceptable for contributors, but it is too much friction for testers. It adds several failure points before the user sees value: installing developer tools, finding the repository root, building the app, and launching a hidden accessory executable.
 
 ## OpenUsage Comparison
 
@@ -21,14 +21,14 @@ OpenUsage leads with command-based install options because it is a terminal dash
 
 FocusGuard should not copy that install pattern. It uses a menu-bar UI, privacy permissions, and visible interruption flows. The website should lead with a Mac download and reserve terminal commands for developers.
 
-## Recommended Public Onboarding
+## Recommended Preview Onboarding
 
-The website should present one primary path:
+For now, the website should present one primary developer-preview path:
 
 1. Download for macOS.
 2. Open the zip.
 3. Move FocusGuard to Applications.
-4. Open FocusGuard.
+4. Control-click and open if macOS blocks the unsigned app.
 5. Complete the in-app setup checklist.
 6. Start the first promise.
 
@@ -42,7 +42,7 @@ The page should show exactly what happens after install:
 
 ## Release Requirement
 
-For non-technical users, the release artifact must be a signed and notarized `.app` zip. Without Developer ID signing and notarization, macOS Gatekeeper adds warnings that make the product feel unsafe before the user can evaluate it.
+The current release artifact is an unsigned `.app` zip. This is acceptable for a free developer preview, but not for a polished public install experience. Without Developer ID signing and notarization, macOS Gatekeeper adds warnings that make the product feel less trustworthy for non-technical users.
 
 The repository now includes `scripts/package-macos-app.sh` to create `FocusGuard.app` and a release zip. It supports:
 
@@ -55,13 +55,14 @@ The repository now includes `scripts/package-macos-app.sh` to create `FocusGuard
 Primary install block:
 
 ```text
-Download FocusGuard for macOS
+Download FocusGuard for macOS Preview
 
-No account. No cloud dashboard. Runs locally from your menu bar.
+Free developer preview. No account. No cloud dashboard. Runs locally from your menu bar.
 
 1. Download FocusGuard-macOS.zip
 2. Move FocusGuard.app to Applications
-3. Open it and finish the setup checklist
+3. Control-click Open if macOS blocks first launch
+4. Finish the setup checklist
 ```
 
 Secondary developer block:

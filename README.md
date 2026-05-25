@@ -16,20 +16,21 @@ Start a promise, keep the timer visible, and let FocusGuard watch for drift usin
 
 ## Status
 
-FocusGuard is currently an MVP local development build. It is packaged as a SwiftPM executable, not a signed `.app` bundle or App Store release.
+FocusGuard is currently an MVP developer preview. It can be packaged as an unsigned `.app` zip for GitHub Releases, but it is not signed, notarized, or published through the App Store.
 
 The v1 classifier boundary supports Codex CLI. If Codex is unavailable, logged out, sandboxed, slow, or returns invalid JSON, FocusGuard degrades safely to an unknown/no-interrupt result.
 
 ## Install
 
-Current public-release target:
+Developer preview:
 
 1. Download `FocusGuard-macOS.zip` from the [latest release](https://github.com/SergioPujol/focus-guard/releases/latest/download/FocusGuard-macOS.zip).
 2. Open the zip and move `FocusGuard.app` to Applications.
 3. Open FocusGuard from Applications.
-4. Click the menu-bar icon and finish the setup checklist.
+4. If macOS blocks the app because it is unsigned, Control-click `FocusGuard.app`, choose `Open`, then confirm you want to open it.
+5. Click the menu-bar icon and finish the setup checklist.
 
-This is the intended no-terminal install path for users. It becomes available after a signed and notarized GitHub Release is published. See [docs/release.md](docs/release.md) for the release workflow.
+This preview path avoids requiring users to build from Terminal, but it is not the polished public install experience. A signed and notarized release requires Apple Developer Program enrollment. See [docs/release.md](docs/release.md) for the release workflow.
 
 For local development, build and launch from the repository root:
 
@@ -123,13 +124,13 @@ Launch the app:
 .build/debug/FocusGuard
 ```
 
-Create a release zip for manual testing:
+Create an unsigned release zip for manual testing:
 
 ```sh
 scripts/package-macos-app.sh
 ```
 
-Create a signed and notarized release zip:
+Optional: create a signed and notarized release zip when Apple Developer credentials are available:
 
 ```sh
 SIGNING_IDENTITY="Developer ID Application: Your Name (TEAMID)" \
@@ -167,7 +168,7 @@ Screen capture is blocked:
 
 ## Known Limitations
 
-- The app is not currently published as a signed and notarized production download.
+- The app is currently distributed as an unsigned developer preview, so macOS Gatekeeper may require a manual open confirmation.
 - Recovery actions show fallback instructions instead of performing browser/app automation.
 - ScreenCaptureKit capture is not wired yet; `ScreenshotBuffer` is implemented and tested as the safe storage boundary.
 - Codex calls are slow and token-heavy for high-frequency polling.
