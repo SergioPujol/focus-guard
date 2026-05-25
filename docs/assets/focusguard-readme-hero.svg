@@ -1,0 +1,46 @@
+<svg width="1280" height="640" viewBox="0 0 1280 640" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">FocusGuard</title>
+  <desc id="desc">FocusGuard logo and wordmark on a dark macOS-style background.</desc>
+  <defs>
+    <linearGradient id="bg" x1="152" y1="52" x2="1128" y2="588" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#171A1F"/>
+      <stop offset="0.48" stop-color="#0D0F13"/>
+      <stop offset="1" stop-color="#050608"/>
+    </linearGradient>
+    <linearGradient id="panel" x1="280" y1="122" x2="1040" y2="520" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#22262D" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#090A0D" stop-opacity="0.94"/>
+    </linearGradient>
+    <linearGradient id="mark" x1="336" y1="197" x2="534" y2="441" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F8F8F5"/>
+      <stop offset="1" stop-color="#D8D9D4"/>
+    </linearGradient>
+    <filter id="soft-shadow" x="120" y="72" width="1040" height="520" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+      <feOffset dy="18"/>
+      <feGaussianBlur stdDeviation="32"/>
+      <feComposite in2="hardAlpha" operator="out"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.42 0"/>
+      <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_1_1"/>
+      <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_1_1" result="shape"/>
+    </filter>
+  </defs>
+
+  <rect width="1280" height="640" rx="56" fill="url(#bg)"/>
+  <path d="M0 502C154 420 291 432 443 486C588 538 754 566 932 492C1062 438 1174 432 1280 456V640H0V502Z" fill="#FFFFFF" fill-opacity="0.025"/>
+
+  <g filter="url(#soft-shadow)">
+    <rect x="190" y="134" width="900" height="372" rx="52" fill="url(#panel)"/>
+    <rect x="190.75" y="134.75" width="898.5" height="370.5" rx="51.25" stroke="white" stroke-opacity="0.09" stroke-width="1.5"/>
+
+    <g aria-hidden="true">
+      <path d="M337 255L386 293V383L337 345V255Z" fill="url(#mark)"/>
+      <path d="M410 197L462 241V441L410 397V197Z" fill="url(#mark)"/>
+      <path d="M484 238L534 278V394L484 354V238Z" fill="url(#mark)"/>
+    </g>
+
+    <text x="646" y="302" fill="#F7F7F2" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif" font-size="70" font-weight="700" letter-spacing="0" textLength="360" lengthAdjust="spacingAndGlyphs">FocusGuard</text>
+    <text x="649" y="354" fill="#AEB3BD" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif" font-size="25" font-weight="500" letter-spacing="0">Recovery-first focus for macOS.</text>
+  </g>
+</svg>

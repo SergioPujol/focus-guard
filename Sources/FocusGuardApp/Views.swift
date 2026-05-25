@@ -589,9 +589,7 @@ struct InterruptionView: View {
         HStack(spacing: 8) {
             FocusGuardMark(
                 size: 13,
-                baseColor: FGTheme.secondary,
-                cutoutColor: Color.black.opacity(0.68),
-                accentColor: FGTheme.focus.opacity(0.9)
+                baseColor: FGTheme.secondary
             )
             Text("FocusGuard")
                 .font(.system(size: 12, weight: .semibold))

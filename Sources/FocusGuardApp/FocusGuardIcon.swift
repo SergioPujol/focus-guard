@@ -31,22 +31,9 @@ enum FocusGuardIcon {
         context.translateBy(x: -rect.midX, y: -rect.midY)
 
         context.setFillColor(NSColor.black.cgColor)
-        context.addPath(shellPath(in: rect))
-        context.fillPath()
-
-        context.setBlendMode(.clear)
-        context.addPath(aperturePath(in: rect.insetBy(dx: rect.width * 0.19, dy: rect.height * 0.19)))
+        context.addPath(sliverMarkPath(in: rect))
         context.fillPath()
         context.restoreGState()
-
-        context.setFillColor(NSColor.black.cgColor)
-        let dot = rect.width * 0.17
-        context.fillEllipse(in: CGRect(
-            x: rect.midX + rect.width * 0.06,
-            y: rect.midY - dot * 0.52,
-            width: dot,
-            height: dot
-        ))
     }
 
     private static func drawApplicationIcon(in context: CGContext, rect: CGRect) {
@@ -54,8 +41,8 @@ enum FocusGuardIcon {
         let background = CGGradient(
             colorsSpace: CGColorSpaceCreateDeviceRGB(),
             colors: [
-                NSColor(calibratedRed: 0.09, green: 0.10, blue: 0.11, alpha: 1).cgColor,
-                NSColor(calibratedRed: 0.01, green: 0.012, blue: 0.014, alpha: 1).cgColor
+                NSColor(calibratedWhite: 0.99, alpha: 1).cgColor,
+                NSColor(calibratedWhite: 0.90, alpha: 1).cgColor
             ] as CFArray,
             locations: [0, 1]
         )
@@ -73,61 +60,79 @@ enum FocusGuardIcon {
         }
         context.restoreGState()
 
-        let markRect = rect.insetBy(dx: 26, dy: 22)
-        context.setFillColor(NSColor(calibratedWhite: 0.96, alpha: 1).cgColor)
-        context.addPath(shellPath(in: markRect))
+        let markRect = rect.insetBy(dx: 30, dy: 24)
+        context.setFillColor(NSColor(calibratedWhite: 0.05, alpha: 1).cgColor)
+        context.addPath(sliverMarkPath(in: markRect))
         context.fillPath()
 
-        context.saveGState()
-        context.setBlendMode(.clear)
-        context.addPath(aperturePath(in: markRect.insetBy(dx: markRect.width * 0.19, dy: markRect.height * 0.19)))
-        context.fillPath()
-        context.restoreGState()
-
-        let dot = markRect.width * 0.18
-        context.setFillColor(NSColor(calibratedRed: 0.48, green: 0.94, blue: 0.62, alpha: 1).cgColor)
-        context.fillEllipse(in: CGRect(
-            x: markRect.midX + markRect.width * 0.06,
-            y: markRect.midY - dot * 0.52,
-            width: dot,
-            height: dot
+        context.setStrokeColor(NSColor(calibratedWhite: 1, alpha: 0.78).cgColor)
+        context.setLineWidth(1)
+        context.addPath(CGPath(
+            roundedRect: rect.insetBy(dx: 7, dy: 7),
+            cornerWidth: corner * 0.94,
+            cornerHeight: corner * 0.94,
+            transform: nil
         ))
+        context.strokePath()
 
-        context.setStrokeColor(NSColor(calibratedWhite: 1, alpha: 0.16).cgColor)
+        context.setStrokeColor(NSColor(calibratedWhite: 0, alpha: 0.10).cgColor)
         context.setLineWidth(1)
         context.addPath(backgroundPath(in: rect.insetBy(dx: 6.5, dy: 6.5)))
         context.strokePath()
     }
 
-    fileprivate static func shellPath(in rect: CGRect) -> CGPath {
+    fileprivate static func sliverMarkPath(in rect: CGRect) -> CGPath {
         let path = CGMutablePath()
-        func point(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
-            CGPoint(x: rect.minX + rect.width * x, y: rect.minY + rect.height * y)
-        }
 
-        path.move(to: point(0.50, 0.04))
-        path.addCurve(to: point(0.88, 0.20), control1: point(0.64, 0.06), control2: point(0.80, 0.10))
-        path.addCurve(to: point(0.86, 0.49), control1: point(0.89, 0.29), control2: point(0.89, 0.39))
-        path.addCurve(to: point(0.50, 0.94), control1: point(0.81, 0.70), control2: point(0.66, 0.86))
-        path.addCurve(to: point(0.14, 0.49), control1: point(0.34, 0.86), control2: point(0.19, 0.70))
-        path.addCurve(to: point(0.12, 0.20), control1: point(0.11, 0.39), control2: point(0.11, 0.29))
-        path.addCurve(to: point(0.50, 0.04), control1: point(0.20, 0.10), control2: point(0.36, 0.06))
-        path.closeSubpath()
+        addSliver(
+            to: path,
+            in: rect,
+            x: 0.10,
+            width: 0.20,
+            top: 0.72,
+            bottom: 0.28,
+            slant: 0.13
+        )
+        addSliver(
+            to: path,
+            in: rect,
+            x: 0.40,
+            width: 0.21,
+            top: 0.92,
+            bottom: 0.08,
+            slant: 0.15
+        )
+        addSliver(
+            to: path,
+            in: rect,
+            x: 0.70,
+            width: 0.20,
+            top: 0.76,
+            bottom: 0.22,
+            slant: 0.14
+        )
+
         return path
     }
 
-    fileprivate static func aperturePath(in rect: CGRect) -> CGPath {
-        let path = CGMutablePath()
-        func point(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
-            CGPoint(x: rect.minX + rect.width * x, y: rect.minY + rect.height * y)
+    private static func addSliver(
+        to path: CGMutablePath,
+        in rect: CGRect,
+        x: CGFloat,
+        width: CGFloat,
+        top: CGFloat,
+        bottom: CGFloat,
+        slant: CGFloat
+    ) {
+        func point(_ px: CGFloat, _ py: CGFloat) -> CGPoint {
+            CGPoint(x: rect.minX + rect.width * px, y: rect.minY + rect.height * py)
         }
 
-        path.move(to: point(0.11, 0.53))
-        path.addCurve(to: point(0.57, 0.13), control1: point(0.24, 0.41), control2: point(0.39, 0.27))
-        path.addLine(to: point(0.90, 0.31))
-        path.addCurve(to: point(0.43, 0.71), control1: point(0.76, 0.42), control2: point(0.60, 0.56))
+        path.move(to: point(x, bottom))
+        path.addLine(to: point(x + width, bottom + slant))
+        path.addLine(to: point(x + width, top))
+        path.addLine(to: point(x, top - slant))
         path.closeSubpath()
-        return path
     }
 
     private static func backgroundPath(in rect: CGRect) -> CGPath {
@@ -143,34 +148,17 @@ enum FocusGuardIcon {
 struct FocusGuardMark: View {
     let size: CGFloat
     var baseColor: Color = Color.white.opacity(0.94)
-    var cutoutColor: Color = Color.black.opacity(0.68)
-    var accentColor: Color = Color(red: 0.48, green: 0.94, blue: 0.62)
 
     var body: some View {
-        ZStack {
-            FocusGuardShellShape()
-                .fill(baseColor)
-            FocusGuardApertureShape()
-                .fill(cutoutColor)
-                .frame(width: size * 0.62, height: size * 0.62)
-            Circle()
-                .fill(accentColor)
-                .frame(width: size * 0.17, height: size * 0.17)
-                .offset(x: size * 0.14, y: size * 0.02)
-        }
+        FocusGuardSliverMarkShape()
+            .fill(baseColor)
         .frame(width: size, height: size)
         .accessibilityHidden(true)
     }
 }
 
-private struct FocusGuardShellShape: Shape {
+private struct FocusGuardSliverMarkShape: Shape {
     func path(in rect: CGRect) -> Path {
-        Path(FocusGuardIcon.shellPath(in: rect))
-    }
-}
-
-private struct FocusGuardApertureShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        Path(FocusGuardIcon.aperturePath(in: rect))
+        Path(FocusGuardIcon.sliverMarkPath(in: rect))
     }
 }
