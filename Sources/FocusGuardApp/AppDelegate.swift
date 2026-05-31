@@ -81,13 +81,14 @@ final class StatusBarController {
 }
 
 @MainActor
-final class InterruptionPresenter {
+final class InterruptionPresenter: NSObject, NSWindowDelegate {
     private let store: SessionStore
     private var cancellables: Set<AnyCancellable> = []
     private var window: NSWindow?
 
     init(store: SessionStore) {
         self.store = store
+        super.init()
         store.$activeRecoveryPlan
             .receive(on: RunLoop.main)
             .sink { [weak self] plan in
@@ -98,8 +99,7 @@ final class InterruptionPresenter {
 
     private func update(plan: RecoveryPlan?) {
         guard let plan, plan.shouldInterrupt else {
-            window?.close()
-            window = nil
+            closeInterruptionWindow()
             return
         }
 
@@ -118,6 +118,7 @@ final class InterruptionPresenter {
             defer: false
         )
         newWindow.contentViewController = controller
+        newWindow.delegate = self
         newWindow.level = .floating
         newWindow.isReleasedWhenClosed = false
         newWindow.isMovableByWindowBackground = true
@@ -129,6 +130,25 @@ final class InterruptionPresenter {
         window = newWindow
         NSApp.activate(ignoringOtherApps: true)
         newWindow.makeKeyAndOrderFront(nil)
+    }
+
+    func windowDidResignKey(_ notification: Notification) {
+        guard notification.object as? NSWindow === window else { return }
+        store.dismissInterruption()
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        guard notification.object as? NSWindow === window else { return }
+        window = nil
+        if store.activeRecoveryPlan?.shouldInterrupt == true {
+            store.dismissInterruption()
+        }
+    }
+
+    private func closeInterruptionWindow() {
+        window?.delegate = nil
+        window?.close()
+        window = nil
     }
 }
 
