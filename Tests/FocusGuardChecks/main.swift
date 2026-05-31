@@ -95,6 +95,28 @@ let checks: [(String, () throws -> Void)] = [
         let sample = sampleContext(url: "https://youtube.com/watch?v=swift-appkit", title: "Swift AppKit Tutorial")
         try expect(engine.decide(context: sample, promise: "Build FocusGuard", rules: rules) == .allow("global allow"), "global allow should beat default block")
     }),
+    ("browser app allow does not override default distraction domain", {
+        let engine = RuleEngine()
+        let rules = FocusGuardDefaults.rules + [
+            FocusRule(kind: .allow, scope: .session, target: .app("Arc"), reason: "Arc allowed")
+        ]
+        let sample = sampleContext(app: "Arc", url: "https://youtube.com/watch?v=distracting", title: "Distracting video")
+        try expect(
+            engine.decide(context: sample, promise: "Research and work using codex", rules: rules) == .block("YouTube is a default distraction unless allowed for this promise.", .closeTab),
+            "youtube domain should beat broad browser app allow"
+        )
+    }),
+    ("browser app allow without page evidence falls through to AI", {
+        let engine = RuleEngine()
+        let rules = [
+            FocusRule(kind: .allow, scope: .session, target: .app("Arc"), reason: "Arc allowed")
+        ]
+        let sample = sampleContext(app: "Arc", url: nil, title: "Distracting video - YouTube")
+        try expect(
+            engine.decide(context: sample, promise: "Research and work using codex", rules: rules) == .noDecision,
+            "browser container allow should not prevent AI classification"
+        )
+    }),
     ("domain rules match host boundaries only", {
         let engine = RuleEngine()
         let rules = [
@@ -229,11 +251,11 @@ let checks: [(String, () throws -> Void)] = [
         try expect(items.first { $0.kind == .screenRecording }?.status == .ready, "screen recording")
         try expect(items.first { $0.kind == .codex }?.fix == "not logged in", "codex error")
     }),
-    ("AI classifier settings default to cheap model", {
+    ("AI classifier settings default to cheap eager checks", {
         let settings = AIClassifierSettings.default
         try expect(settings.normalizedModel == "gpt-5.3-codex", "model")
         try expect(settings.reasoningEffort == .low, "reasoning")
-        try expect(settings.cadence == .balanced, "cadence")
+        try expect(settings.cadence == .aggressive, "cadence")
     }),
     ("AI context fingerprint changes on promise and domain", {
         let first = AIContextFingerprint(promise: "Write README", context: sampleContext(url: "https://x.com/home"))

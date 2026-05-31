@@ -71,6 +71,13 @@ public enum RuleTarget: Codable, Sendable, Equatable {
         case .titleContains(let text): text
         }
     }
+
+    fileprivate var isPageSpecific: Bool {
+        switch self {
+        case .domain, .titleContains: true
+        case .app: false
+        }
+    }
 }
 
 public struct FocusRule: Codable, Sendable, Equatable, Identifiable {
@@ -194,6 +201,20 @@ public struct RuleEngine: Sendable {
         let matching = rules.filter { $0.applies(to: context, promise: promise) }
         guard matching.isEmpty == false else { return .noDecision }
 
+        let pageSpecific = matching.filter { $0.target.isPageSpecific }
+        if pageSpecific.isEmpty == false {
+            return decideMatching(context: context, rules: pageSpecific)
+        }
+
+        if Self.isBrowser(context),
+           matching.contains(where: { $0.kind == .allow && $0.target.isPageSpecific == false }) {
+            return .noDecision
+        }
+
+        return decideMatching(context: context, rules: matching)
+    }
+
+    private func decideMatching(context: ContextSnapshot, rules matching: [FocusRule]) -> RuleDecision {
         for scope in [RuleScope.session, .promise, .global, .defaultRules] {
             let scoped = matching.filter { $0.scope == scope }
             guard scoped.isEmpty == false else { continue }
@@ -221,5 +242,18 @@ public struct RuleEngine: Sendable {
         }
 
         return .noDecision
+    }
+
+    private static func isBrowser(_ context: ContextSnapshot) -> Bool {
+        let app = context.foregroundApp.lowercased()
+        let bundle = context.bundleIdentifier?.lowercased() ?? ""
+        return app.contains("safari")
+            || app.contains("chrome")
+            || app.contains("arc")
+            || app.contains("brave")
+            || bundle.contains("safari")
+            || bundle.contains("chrome")
+            || bundle.contains("thebrowser")
+            || bundle.contains("brave")
     }
 }

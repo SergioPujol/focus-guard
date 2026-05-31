@@ -34,7 +34,7 @@ public enum AICheckCadence: String, Codable, CaseIterable, Identifiable, Sendabl
     public var changedContextMinimumInterval: TimeInterval {
         switch self {
         case .conservative: 60
-        case .balanced: 20
+        case .balanced: 6
         case .aggressive: 6
         }
     }
@@ -56,7 +56,7 @@ public struct AIClassifierSettings: Codable, Sendable, Equatable {
     public init(
         model: String = "gpt-5.3-codex",
         reasoningEffort: AIReasoningEffort = .low,
-        cadence: AICheckCadence = .balanced
+        cadence: AICheckCadence = .aggressive
     ) {
         self.model = model
         self.reasoningEffort = reasoningEffort
