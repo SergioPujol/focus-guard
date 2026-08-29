@@ -1,6 +1,6 @@
 cask "focusguard" do
   version "0.1.0"
-  sha256 "a583c173f8292b5af9d6bb5d7ea6fbea6ca851e9671bdd2f4eb01853abadd190"
+  sha256 "3d1f3ca53e97a913175b59c3e439043fe3cbff09acc65c2e3e0155d32e3799d7"
 
   url "https://github.com/SergioPujol/focus-guard/releases/download/v#{version}/FocusGuard-macOS.zip"
   name "FocusGuard"
