@@ -9,13 +9,18 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ARTIFACTS_DIR="$ROOT_DIR/.build/release-artifacts"
 APP_PATH="$ARTIFACTS_DIR/$APP_NAME.app"
 ZIP_PATH="$ARTIFACTS_DIR/$APP_NAME-macOS.zip"
-EXECUTABLE_PATH="$ROOT_DIR/.build/release/$PRODUCT_NAME"
+ARM64_EXECUTABLE_PATH="$ROOT_DIR/.build/focusguard-arm64/arm64-apple-macosx/release/$PRODUCT_NAME"
+X86_64_EXECUTABLE_PATH="$ROOT_DIR/.build/focusguard-x86_64/x86_64-apple-macosx/release/$PRODUCT_NAME"
 
 rm -rf "$APP_PATH" "$ZIP_PATH"
 mkdir -p "$APP_PATH/Contents/MacOS" "$APP_PATH/Contents/Resources" "$ARTIFACTS_DIR"
 
-swift build -c release --product "$PRODUCT_NAME"
-cp "$EXECUTABLE_PATH" "$APP_PATH/Contents/MacOS/$PRODUCT_NAME"
+swift build -c release --product "$PRODUCT_NAME" --arch arm64 --scratch-path .build/focusguard-arm64
+swift build -c release --product "$PRODUCT_NAME" --arch x86_64 --scratch-path .build/focusguard-x86_64
+lipo -create \
+  "$ARM64_EXECUTABLE_PATH" \
+  "$X86_64_EXECUTABLE_PATH" \
+  -output "$APP_PATH/Contents/MacOS/$PRODUCT_NAME"
 
 cat > "$APP_PATH/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>

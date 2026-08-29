@@ -17,10 +17,33 @@ Preview releases are created from version tags such as `v0.1.0`.
    git push origin v0.1.0
    ```
 
-4. GitHub Actions runs checks, builds `FocusGuard.app`, zips it as `FocusGuard-macOS.zip`, and publishes a GitHub Release.
-5. Download the release asset on a Mac and verify it opens from Applications.
+4. GitHub Actions runs checks, builds a universal Apple Silicon and Intel `FocusGuard.app`, zips it as `FocusGuard-macOS.zip`, and publishes a GitHub Release.
+5. The release workflow records the published asset checksum, updates `Casks/focusguard.rb` on `main`, and validates the cask.
+6. Download the release asset on a Mac and verify it opens from Applications.
 
 Because the app is unsigned, macOS may block the first launch. Testers can Control-click `FocusGuard.app`, choose `Open`, and confirm the prompt.
+
+## Homebrew
+
+The FocusGuard repository is also a Homebrew tap. Users can register it with its explicit GitHub URL and install the cask:
+
+```sh
+brew tap sergiopuj/focus-guard https://github.com/SergioPujol/focus-guard.git
+brew install --cask sergiopuj/focus-guard/focusguard
+```
+
+Users who have already cloned the repository can instead run:
+
+```sh
+brew tap sergiopuj/focus-guard "$PWD"
+brew install --cask sergiopuj/focus-guard/focusguard
+```
+
+Homebrew 6 requires casks to belong to a tap and rejects direct installation from a local cask file. Registering the clone with `brew tap` keeps the source and cask in one repository while using the supported installation path.
+
+The cask points to an immutable versioned release URL and verifies its SHA-256 checksum. `scripts/test-homebrew-cask.sh` substitutes a locally packaged zip into a temporary cask so the complete installation can be tested before publishing.
+
+The repository currently has no published release. The first remote Homebrew installation becomes available after the first version tag completes this release workflow.
 
 ## Latest Download URL
 

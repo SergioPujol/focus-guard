@@ -13,6 +13,9 @@ jobs:
   package:
     name: Package FocusGuard
     runs-on: macos-latest
+    outputs:
+      version: ${{ steps.release_metadata.outputs.version }}
+      sha256: ${{ steps.release_metadata.outputs.sha256 }}
 
     steps:
       - name: Check out repository
@@ -93,6 +96,19 @@ jobs:
         run: |
           VERSION="${GITHUB_REF_NAME#v}" scripts/package-macos-app.sh
 
+      - name: Validate Homebrew cask style
+        run: brew style Casks/focusguard.rb
+
+      - name: Test Homebrew cask installation
+        run: scripts/test-homebrew-cask.sh
+
+      - name: Record release metadata
+        id: release_metadata
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          echo "sha256=$(shasum -a 256 .build/release-artifacts/FocusGuard-macOS.zip | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
@@ -116,3 +132,42 @@ jobs:
           gh "${args[@]}"
         env:
           GH_TOKEN: ${{ github.token }}
+
+  update-cask:
+    name: Update Homebrew cask
+    needs: package
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: macos-latest
+
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Update cask version and checksum
+        run: scripts/update-homebrew-cask.sh "${{ needs.package.outputs.version }}" "${{ needs.package.outputs.sha256 }}"
+
+      - name: Download packaged app
+        uses: actions/download-artifact@v4
+        with:
+          name: FocusGuard-macOS
+          path: .build/release-artifacts
+
+      - name: Validate updated cask
+        run: |
+          brew style Casks/focusguard.rb
+          scripts/test-homebrew-cask.sh
+
+      - name: Commit cask update
+        run: |
+          if git diff --quiet -- Casks/focusguard.rb; then
+            echo "Cask already matches the published release."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Casks/focusguard.rb
+          git commit -m "Update Homebrew cask to ${{ needs.package.outputs.version }}"
+          git push origin HEAD:main

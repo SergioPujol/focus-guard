@@ -22,7 +22,23 @@ The v1 classifier boundary supports Codex CLI. If Codex is unavailable, logged o
 
 ## Install
 
-Developer preview:
+Homebrew from a cloned repository:
+
+```sh
+brew tap sergiopuj/focus-guard "$PWD"
+brew install --cask sergiopuj/focus-guard/focusguard
+```
+
+Homebrew without cloning manually:
+
+```sh
+brew tap sergiopuj/focus-guard https://github.com/SergioPujol/focus-guard.git
+brew install --cask sergiopuj/focus-guard/focusguard
+```
+
+The custom tap is this same repository. Homebrew refreshes a GitHub-backed tap during `brew update`, and later FocusGuard releases can be installed with `brew upgrade --cask focusguard`. Homebrew 6 requires casks to belong to a tap, so it no longer accepts `brew install --cask ./Casks/focusguard.rb` directly.
+
+Direct download:
 
 1. Download `FocusGuard-macOS.zip` from the [latest release](https://github.com/SergioPujol/focus-guard/releases/latest/download/FocusGuard-macOS.zip).
 2. Open the zip and move `FocusGuard.app` to Applications.
@@ -30,7 +46,7 @@ Developer preview:
 4. If macOS blocks the app because it is unsigned, Control-click `FocusGuard.app`, choose `Open`, then confirm you want to open it.
 5. Click the menu-bar icon and finish the setup checklist.
 
-This preview path avoids requiring users to build from Terminal, but it is not the polished public install experience. A signed and notarized release requires Apple Developer Program enrollment. See [docs/release.md](docs/release.md) for the release workflow.
+Both preview paths avoid requiring users to build the app. A signed and notarized release requires Apple Developer Program enrollment. See [docs/release.md](docs/release.md) for the release workflow.
 
 For local development, build and launch from the repository root:
 

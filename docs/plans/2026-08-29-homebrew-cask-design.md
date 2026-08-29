@@ -9,8 +9,11 @@ Make FocusGuard installable through Homebrew while keeping its source, packaging
 Users who already cloned the repository can install from its cask definition:
 
 ```sh
-brew install --cask ./Casks/focusguard.rb
+brew tap sergiopuj/focus-guard "$PWD"
+brew install --cask sergiopuj/focus-guard/focusguard
 ```
+
+Homebrew 6 requires casks to belong to a tap and no longer permits direct installation from a local cask file.
 
 Users who do not want to clone manually can register the existing repository as a custom tap and install the fully qualified cask:
 
@@ -25,7 +28,7 @@ The custom-tap route lets normal `brew update` and `brew upgrade` commands disco
 
 `Casks/focusguard.rb` describes the macOS application bundle. It downloads the immutable asset for a versioned GitHub Release, verifies its SHA-256 checksum, and installs `FocusGuard.app` into the user's Homebrew cask application directory, normally `/Applications`.
 
-The existing packaging script remains the single source of release artifacts. A version tag builds `FocusGuard-macOS.zip`, runs the project checks, and publishes the zip through the existing GitHub Actions release workflow.
+The existing packaging script remains the single source of release artifacts. It builds a universal Apple Silicon and Intel app so one cask works on supported Macs. A version tag builds `FocusGuard-macOS.zip`, runs the project checks, and publishes the zip through the existing GitHub Actions release workflow.
 
 ## Cask Updates
 
